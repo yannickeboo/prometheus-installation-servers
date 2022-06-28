@@ -1,0 +1,327 @@
+Welcome back, I'm Travis with Linux Academy.
+In this lesson, we're going to go and install Prometheus
+on our Kubernetes cluster.
+So far, we've gone and installed our Kubernetes cluster,
+we've talked about the architecture Prometheus
+and now we're going to go and get everything set up.
+Now, a quick recap.
+Now over here to my right,
+we have what we're going to be building out
+throughout this course.
+This is the entire environment which we'll be building.
+So far, we've gone and we've set up our Kubernetes cluster
+and now we're going to be going and setting up Prometheus.
+And this is going to be consisting of two components.
+We have the actual Prometheus pod itself
+and then we have cAdvisor,
+which is already built into Kubernetes,
+so we will be able to get metrics on our pods automatically.
+We don't have to go and set up a new container
+for cAdvisor and we'll be talking about cAdvisor
+in a little bit more details later on.
+The first thing I want to do is I want to go
+and install Git on our Kubernetes master.
+So I'm just going to do a yum install
+y git.
+Okay, so why do we go and install Git?
+The reason is because I have this GitHub repo set up.
+We're just going to go and clone this repository
+and we're going to be using it to go
+and bootstrap our Prometheus environment.
+So come over here and click on Clone or Download
+and click the clipboard icon.
+Come back over to your master here and type, git clone
+and then paste in the URL to the repository.
+Alright, let's see.
+Now, we're going to go and navigate
+to content-kubernetes-prometheus-env.
+As you can see, we have 4 directories so far.
+The one we'll be going into is Prometheus.
+And we have 6 files we'll be using
+to go and bootstrap this environment.
+Now, the first thing that we need to go do
+is create the namespace where Prometheus will be living in.
+So I'm using the namespace yaml file.
+So let's go and take a look at that first.
+All this file does, is it's going to go
+and create a new namespace called monitoring.
+Now namespaces are virtual clusters
+that live on the same physical cluster.
+Okay, so now we're going to go and apply this file
+and to do that, we're going to go and execute kubectl apply
+and we're going to use the -f flag to specify our file,
+which is going to be the namespace yaml file.
+Okay. So now that we have our namespace set up,
+we're going to go and start building out
+our Prometheus environment.
+Now, the first thing we need to do
+is go and set up a configuration map.
+So let's go and take a look
+at the Prometheus configuration map.
+Now, configuration maps are just a really convenient way
+of being able to go and decouple
+your configuration artifacts from your image content.
+I'm going to go ahead and just expand this out,
+so we have a good clear view of this configuration map.
+Now, as you can see,
+the kind is going to be the ConfigMap.
+Just like most things within our YAML files,
+we have our metadata, we have our labels,
+and we definitely want to make sure
+that we set this to our monitoring namespace.
+Under data, we're going to specify the name of the file
+that we're going to be creating
+and then the contents of that file.
+So we're going to be using this configuration map
+to go and set up our Prometheus YAML file.
+Now I'm not going to be going through
+everything in this file just yet.
+I'm going to be saving that when we start talking
+about the Prometheus YAML file
+but just know that we have two sections here.
+We have global, where we're going to go and define
+our scrape interval, which is going to be 5 seconds,
+as well as the evaluation interval,
+which is also going to be five seconds.
+The other section, which is going to be very long,
+is where we're setting up our scrape configs.
+Now, the first thing we need to do
+is go and make some changes here.
+We're setting up a node-exporter right here
+and that is going to go and require the IP address
+of our 2 servers.
+Now under my script config, I have a node exporter,
+which I'll be setting up
+and we need to go and replace the Kubernetes IP
+with the IP of the master, as well as the worker node.
+Okay, so let's go and update these IPs.
+The first thing to do is I'm just going to go
+and delete these real quick.
+And I'm going to go and shrink this back down
+and now I'm going to grab the private IP
+and it does need to be the private IP.
+If it's not, it won't work.
+Paste that in. Now let's get the one for our worker node.
+Okay, that is it.
+Save and quit.
+Okay, so now that we have our file updated,
+we want to go and execute a kubectl apply
+and again, using the -f flag,
+we're going to go and specify our configuration maps.
+So prometheus-config-map.
+Okay, so now that is created.
+Now, if you want to go and view your config maps,
+we can go and execute a kubectl get configmaps.
+And if we just execute it without the flag,
+you'll see that we don't have anything there
+but if we use -n and specify monitoring,
+you'll see that we have our Prometheus server config.
+Now, if you want to get the contents
+of that configuration map, we can go and execute
+a describe on our configuration map.
+And again, let me go and expand this out.
+And as you can see, this is exactly
+what was in the file that we just created.
+So we have our Prometheus file here, prometheus.yml.
+We have our global configuration,
+as well as our scrape configs.
+Next, let's go and take a look
+at our Prometheus deployment YAML file.
+Now, because you're expected to have
+a certain level of knowledge with Kubernetes,
+I'm not going to cover what a deployment is.
+I'm just going to focus on what we're creating here
+with Prometheus.
+So if you come down over here, under spec,
+we're going to go and create our Prometheus container.
+We're going to be using the prom/prometheus
+and then the tag of version 2.2.1,
+so this is the version of Prometheus
+that we'll be deploying out.
+Now, we want to make sure that we do specify
+a couple of arguments here.
+The first one and probably the most important one
+is going to be the config file.
+We want to make sure that we're specifying
+/etc/prometheus/prometheus.yml
+The second is going to be where we're going to be storing
+our Prometheus data.
+And we do this by setting up storage.tsdb.path
+and then we're going to stick everything into /prometheus.
+The other thing that we're going to be specifying is our
+ports. So we want to make sure that our container port
+is going to be set to 9090.
+And then, we're setting up a couple of volumes.
+The first one here
+is going to be the Prometheus config volume
+and this is going to be using our configuration map.
+And we're going to be setting up our mount path,
+which is going to be /etc/prometheus.
+And again, the name of the file will be determined
+by the configuration map,
+which is going to be prometheus.yml.
+And the second volume that we're going to be specifying
+is our Prometheus storage volume
+and we have the mount path of /prometheus.
+Now the main thing I want to point out to you
+is that we are using volumes that will be destroyed
+if you go and redeploy out your pod.
+So these are very ephemeral volumes.
+Now, if we're using this in a production environment,
+we want to make sure that we would use a persistent volume
+but since this is for demo purposes only,
+I'm just going to go ahead and stick
+with just creating these very temporary volumes.
+Now we have another container
+which is going to be called watch.
+We're going to be using the weaveworks/watch container.
+What this is going to be used for is checking to see
+if there's any changes for a configuration file,
+therefore it can go and reload our containers,
+that way we don't have to go and destroy our pod.
+Okay, so it also is going to be using the volume mount
+and the main thing we're going to be dealing with here
+is our Prometheus configuration volume.
+We want to make sure that it's going to keep an eye
+on our Prometheus YAML file.
+And then we're going to go and define our volumes here.
+So we have our Prometheus configuration volume,
+which is going to be our configuration map.
+We want to set the default mode to 420
+and then we provide the name of the configuration map.
+And then finally, we're going to be creating
+our prometheus-storage-volume,
+which is just going to be an empty directory.
+Okay, so let's go and create our Prometheus deployment.
+Again, we're going to be using kubectl
+apply -f and then the name of our file,
+which is prometheus-deployment.
+Alright, I just flipped the L and the T here.
+Now, if I do a kubectl and get pods,
+remember, we've got to use -n to specify monitoring.
+You'll see that we have 2 pods running.
+Now we're going to go and create a Prometheus service
+and the reason why we're doing this
+is that we want to make sure that our Prometheus UI
+is publicly accessible, because there's a few things
+that we're going to be doing with it.
+So let's go and take a look at our Prometheus service file.
+Okay, so there's a couple of things
+I do need to point out here,
+specifically, is that we need to make sure
+that we do have the namespace set for monitoring.
+And we also have the annotation,
+which is pretty important for our service discovery.
+The first thing that we're going to go and specify
+is our Prometheus.io/scrape
+and we want to make sure that is set to true.
+Next up, we have prometheus.io/port and
+this is the port that Prometheus's going to go and scrape.
+Now there's a couple of things that we need to go
+and talk about when it comes to our ports here.
+Now, our public port that is being exposed
+is port 8080 and the target port is 9090.
+Now this needs to be set to 9090 as well
+because it's going to be using an internal IP
+and this is going to be accessed internally to Kubernetes.
+So using port 8080 is not going to work
+but using port 9090 will.
+Also, we have our selector.
+This is how our service is going to know
+which pod to go and talk to,
+which is going to be our Prometheus server.
+So let's go ahead and quit and go and create our service.
+And if I do a kubectl get services and again,
+a -n with the monitoring namespace,
+you'll see that we now have our Prometheus service running.
+Alright. So let me go and set this aside here.
+I'm going to grab my public IP.
+I'm going to open a new tab
+I'm going to go and paste it in
+and then supply the port of 8080.
+This is what we define within our service.
+So we should now have access to our Prometheus UI.
+Now come over here and click on Status
+and if you click Configuration, you'll see,
+this is the configuration for Prometheus.
+We have our script config here with all the jobs,
+which is the Kubernetes API.
+We have the node-exporter.
+We also have, let's see,
+Kubernetes pod, Kubernetes nodes
+and let's see here, the Kubernetes service endpoints.
+So these are all the targets that we should have.
+Now, if I come over here and click on Targets,
+you'll see that we only have one,
+which is the node-exporter, which are both down
+and the reason why they're down
+is that we haven't set up node-exporter,
+so this isn't a big deal.
+However, we don't have any of our other targets present
+and there is a reason behind that.
+And the reason why is if I just go ahead and clear my screen
+and do an ls, we don't have any roles supplied yet.
+So this is where our cluster roles file comes in.
+And all this is doing is it's going through
+and making sure that we have the ability
+to go and get access to the /metrics,
+which will go and populate all of our other targets.
+So we're going to go and apply that.
+So kubectl apply.
+And -f and then we just specify our cluster's role.
+Okay, so now if I come over here and I do a refresh,
+you'll see that we'll have all our targets showing up now
+and it's going to take a little bit of time
+for these to come online, so I'll just go ahead and refresh.
+And it looks like everything is good,
+with the exception of node-exporter
+but this will be down for a bit.
+Now we have all of our targets showing up within Prometheus.
+Now there's one more file I want to go and execute
+and that is kube-state-metrics,
+so let's go ahead and take a look at that file.
+Now there's one thing I want to specify really quickly,
+that I did in this file
+but I didn't do in the other ones,
+which is I have the service and the deployment
+combined in one file
+and the way we go and do that
+is by using the 3 hyphens right here.
+So this first section, we're going to be using to go
+and create our service
+and then the following will be used
+to create our actual deployment.
+And all this is doing
+is we're just going to be using kube-state-metrics here,
+which will be accessible on port 8080.
+So kubectl apply -f
+and then kube-state-metrics.
+Okay, so if I come back over here
+to the right and I scroll down
+under kubernetes-service-endpoints,
+you'll notice that we have 2 endpoints currently.
+And if I go in and refresh,
+you'll see that we now have 3,
+which is this one here running on port 8080,
+this is our kube-state-metrics.
+I want to go and open up another tab
+and I'm just going to paste in this URL
+so you can find more information
+on kube-state-metrics and basically what it does.
+The kube-state-metrics pod is just a very easy way
+of gathering metrics on the Kubernetes API.
+And the main thing that points out here
+is that this is not going to be focused on the actual health
+of the Kubernetes cluster itself
+but rather on the various objects
+that are inside that cluster,
+such as your deployments, pods, nodes, etc.
+Okay, so basically, that's it.
+We have now started off.
+Again, this is the end state
+of what we're going to be creating.
+We've gone and set up our Kubernetes cluster
+and now we've gone and created our Prometheus deploy.
+In the next lesson, we're going to be going through
+and setting up Grafana.
+Go ahead and mark this lesson complete.
